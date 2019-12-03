@@ -134,10 +134,6 @@ pub struct Move {
     distance: u32
 }
 
-impl Debug for Move {
-
-}
-
 fn convert_direction(input: &str) -> Result<Direction, std::num::ParseIntError> {
     match input {
         "U" => Ok(Direction::UP),
