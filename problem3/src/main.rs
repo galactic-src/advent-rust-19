@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, BufRead};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 extern crate nom;
 
@@ -15,105 +15,91 @@ fn main() {
 }
 
 fn part1(input: &(Vec<Move>, Vec<Move>)) {
-    let closest = find_closest_intersection(input);
-
-
-    println!("part 1: {}", closest.0.abs() + closest.1.abs());
+    let distance = find_closest_intersection(input);
+    println!("part 1: {}", distance);
 }
 
 fn part2(input: &(Vec<Move>, Vec<Move>)) {
     let visited1 = visited(&input.0);
     let visited2 = visited(&input.1);
-    let mut intersections: HashSet<((i32,i32,u32),(i32,i32,u32))> = HashSet::new();
-    for a in &visited1 {
-        for b in &visited2 {
-            if a.0 == b.0 && a.1 == b.1 {
-                intersections.insert((*a,*b));
-            }
-        }
-    }
-    //let mut intersections = visited1.intersection(&visited2);
 
-    println!("{:?}",intersections);
+    let keys1: HashSet<&Point> = visited1.keys().collect();
+    let keys2: HashSet<&Point> = visited2.keys().collect();
 
-    let first_visited: &((i32,i32,u32),(i32,i32,u32)) = intersections.iter().next().expect("no intersections found");
-    let mut shortest_len: u32 = (first_visited.0).2 + (first_visited.1).2;
-    for ((_, _, a),(_,_,b)) in intersections {
-        if (a + b) < shortest_len {
-            shortest_len = a+b;
-        }
-    }
-
-    println!("part 2 {}", shortest_len);
+    let distance = keys1.intersection(&keys2)
+        .map(|intersection| visited1[intersection] + visited2[intersection])
+        .min().expect("no intersections");
+    println!("part 2: {}", distance);
 }
 
-fn find_closest_intersection(input: &(Vec<Move>, Vec<Move>)) -> (i32,i32) {
+fn find_closest_intersection(input: &(Vec<Move>, Vec<Move>)) -> u32 {
     println!("finding closest");
     let visited1 = visited(&input.0);
     let visited2 = visited(&input.1);
-    let mut intersections: HashSet<((i32,i32,u32),(i32,i32,u32))> = HashSet::new();
-    for a in &visited1 {
-        for b in &visited2 {
-            if a.0 == b.0 && a.1 == b.1 {
-                intersections.insert((*a,*b));
-            }
-        }
-    }
-    //let mut intersections = visited1.intersection(&visited2);
 
-    println!("{:?}",intersections);
-
-    let first_visited: &((i32,i32,u32),(i32,i32,u32)) = intersections.iter().next().expect("no intersections found");
-    let mut closest_x = (first_visited.0).0;
-    let mut closest_y = (first_visited.0).1;
-    for ((x, y, _),(_,_,_)) in intersections {
-        println!("{},{} vs {},{}", x, y, closest_x, closest_y);
-        if (x.abs() + y.abs()) < (closest_x.abs() + closest_y.abs()) {
-            closest_x = x;
-            closest_y = y;
-        }
-    }
-
-    (closest_x, closest_y)
+    let keys1: HashSet<&Point> = visited1.keys().collect();
+    let keys2: HashSet<&Point> = visited2.keys().collect();
+    return keys1.intersection(&keys2)
+        .map(|intersection| (intersection.x.abs() as u32) + (intersection.y.abs() as u32))
+        .min().expect("no intersections");
 }
 
-fn visited(moves: &Vec<Move>) -> HashSet<(i32, i32, u32)> {
-    let mut result: HashSet<(i32,i32,u32)> = HashSet::new();
-    let mut x: i32 = 0;
-    let mut y: i32 = 0;
-    let mut len: u32 = 0;
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct Point {
+    x: i32,
+    y: i32
+}
+
+impl Point {
+    fn add(&mut self, x: i32, y: i32) {
+        self.x += x;
+        self.y += y;
+    }
+
+    fn copy(&self) -> Point {
+        Point {x: self.x, y: self.y}
+    }
+}
+
+fn visited(moves: &Vec<Move>) -> HashMap<Point, u32> {
+    let mut result: HashMap<Point, u32> = HashMap::new();
+
+    let mut end = Point{ x: 0, y: 0};
+    let end_ptr = &mut end;
+    let mut total_len: u32 = 0;
+
     for next in moves {
         match next.direction {
             Direction::UP => {
                 for _ in 1..(next.distance+1) {
-                    y += 1;
-                    len += 1;
-                    result.insert((x,y,len));
+                    end_ptr.add(0, 1);
+                    total_len += 1;
+                    result.entry(end_ptr.copy()).or_insert(total_len);
                 }
             }
             Direction::DOWN => {
                 for _ in 1..(next.distance+1) {
-                    y -= 1;
-                    len += 1;
-                    result.insert((x,y,len));
+                    end_ptr.add(0,-1);
+                    total_len += 1;
+                    result.entry(end_ptr.copy()).or_insert(total_len);
                 }
             }
             Direction::LEFT => {
                 for _ in 1..(next.distance+1) {
-                    x -= 1;
-                    len += 1;
-                    result.insert((x,y,len));
+                    end_ptr.add(-1, 0);
+                    total_len += 1;
+                    result.entry(end_ptr.copy()).or_insert(total_len);
                 }
             }
             Direction::RIGHT => {
                 for _ in 1..(next.distance+1) {
-                    x += 1;
-                    len += 1;
-                    result.insert((x,y,len));
+                    end_ptr.add(1, 0);
+                    total_len += 1;
+                    result.entry(end_ptr.copy()).or_insert(total_len);
                 }
             }
         }
-        println!("({},{})", x, y);
+        //println!("{}", end);
     }
 
     //println!("{:?}",result);
@@ -203,6 +189,7 @@ mod tests {
     #[test]
     fn test_example1() {
         let input = (read_input_line("R75,D30,R83,U83,L12,D49,R71,U7,L72"), read_input_line("U62,R66,U55,R34,D71,R55,D58,R83"));
-        assert_eq!(find_closest_intersection(&input), 159);
+        let distance = find_closest_intersection(&input);
+        assert_eq!(distance, 159);
     }
 }
