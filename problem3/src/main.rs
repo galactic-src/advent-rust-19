@@ -44,7 +44,7 @@ fn find_closest_intersection(input: &(Vec<Move>, Vec<Move>)) -> u32 {
         .min().expect("no intersections");
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Point {
     x: i32,
     y: i32
@@ -74,7 +74,7 @@ fn visited(moves: &Vec<Move>) -> HashMap<Point, u32> {
                 for _ in 1..(next.distance+1) {
                     end_ptr.add(0, 1);
                     total_len += 1;
-                    result.entry(end_ptr.copy()).or_insert(total_len);
+                    result.entry(end_ptr).or_insert(total_len);
                 }
             }
             Direction::DOWN => {
