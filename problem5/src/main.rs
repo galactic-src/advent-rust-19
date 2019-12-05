@@ -110,22 +110,22 @@ impl VM {
             7 => { // less than
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
-                let param3 = self.ip+3;
+                let param3 = self.resolve_param(true, self.ip+3);
                 if param1 < param2 {
-                    self.write_ptr(param3, 1);
+                    self.write(param3, 1);
                 } else {
-                    self.write_ptr(param3, 0);
+                    self.write(param3, 0);
                 }
                 self.ip += argc as i64 + 1;
             }
             8 => { // equal
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
-                let param3 = self.ip+3;
+                let param3 = self.resolve_param(true, self.ip+3);
                 if param1 == param2 {
-                    self.write_ptr(param3, 1);
+                    self.write(param3, 1);
                 } else {
-                    self.write_ptr(param3, 0);
+                    self.write(param3, 0);
                 }
                 self.ip += argc as i64 + 1;
             }
