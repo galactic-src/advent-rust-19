@@ -3,11 +3,122 @@ use std::io::{BufReader, BufRead};
 
 type Storage = Vec<i64>;
 
-pub struct VM {
+struct VM {
     ip: i64,
     storage: Storage,
     input: i64,
     outputs: Vec<i64>
+}
+
+enum Param {
+    Src,
+    Dest,
+    JumpTarget,
+    CondWriteTarget
+}
+
+struct InstructionType {
+    name: &'static str,
+    params: Vec<Param>,
+    action: Fn(&mut VM, Vec<i64>) -> bool
+}
+
+const ADD: InstructionType = InstructionType { name: "ADD", params: vec!(Param::Src, Param::Src, Param::Dest),
+    action: |vm: &mut VM, args: Vec<i64>| {
+        let result = args[0] + args[1];
+        vm.write(args[2], result);
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const MUL: InstructionType = InstructionType { name: "MUL", params: vec!(Param::Src, Param::Src, Param::Dest),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        let result = args[0] * args[1];
+        vm.write(args[2], result);
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const IN: InstructionType = InstructionType { name: "IN", params: vec!(Param::Dest),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        vm.write(args[0], vm.input);
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const OUT: InstructionType = InstructionType { name: "OUT", params: vec!(Param::Src),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        vm.outputs.push(args[0]);
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const JNZ: InstructionType = InstructionType { name: "JNZ", params: vec!(Param::Src, Param::JumpTarget),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        if args[0] != 0 {
+            vm.ip = args[1];
+        } else {
+            vm.ip += args.len() as i64 + 1;
+        }
+        true
+    }
+};
+const JZ: InstructionType = InstructionType { name: "JZ", params: vec!(Param::Src, Param::JumpTarget),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        if args[0] == 0 {
+            vm.ip = args[1];
+        } else {
+            vm.ip += args.len() as i64 + 1;
+        }
+        true
+    }
+};
+const W_LT: InstructionType = InstructionType { name: "W_LT", params: vec!(Param::Src, Param::Src, Param::CondWriteTarget),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        if args[0] < args[1] {
+            vm.write(args[2], 1);
+        } else {
+            vm.write(args[2], 0);
+        }
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const W_EQ: InstructionType = InstructionType { name: "W_EQ", params: vec!(Param::Src, Param::Src, Param::CondWriteTarget),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        if args[0] == args[1] {
+            vm.write(args[2], 1);
+        } else {
+            vm.write(args[2], 0);
+        }
+        vm.ip += args.len() as i64 + 1;
+        true
+    }
+};
+const HALT: InstructionType = InstructionType { name: "HALT", params: vec!(),
+    action: | vm: & mut VM, args: Vec<i64>| {
+        false
+    }
+};
+
+struct Instruction {
+    i_type: InstructionType,
+    args: Vec<i64>
+}
+
+fn instruction_type(op: i64) -> &InstructionType {
+    match op {
+        1 => &ADD,
+        2 => &MUL,
+        3 => &IN,
+        4 => &OUT,
+        5 => &JNZ,
+        6 => &JZ,
+        7 => &W_LT,
+        8 => &W_EQ,
+        99 => &HALT,
+        _ => panic!("Unrecognised op: {}", op)
+    }
 }
 
 impl VM {
@@ -70,39 +181,48 @@ impl VM {
             1 => {
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
-                let result = param1+param2;
-                self.write_ptr(self.ip+3, result);
+                let param3 = self.resolve_param(true, self.ip+3);
+                let result = param1 + param2;
+                self.write(param3, result);
                 self.ip += argc as i64 + 1;
             }
             2 => {
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
+                let param3 = self.resolve_param(true, self.ip+3);
+
                 let result = param1 * param2;
-                self.write_ptr(self.ip+3, result);
+                self.write(param3, result);
                 self.ip += argc as i64 + 1;
             }
             3 => {
                 let param1 = self.resolve_param(true, self.ip+1);
+
                 self.write(param1, self.input);
                 self.ip += argc as i64 + 1;
             }
             4 => {
                 let param1 = self.resolve_param(args[0], self.ip+1);
+
                 self.outputs.push(param1);
                 self.ip += argc as i64 + 1;
             }
             5 => { //jump if true
                 let param1 = self.resolve_param(args[0], self.ip+1);
+                let param2 = self.resolve_param(args[1], self.ip+2);
+
                 if param1 == 0 {
                     self.ip += argc as i64 + 1;
                 } else {
-                    self.ip = self.resolve_param(args[1], self.ip+2);
+                    self.ip = param2;
                 }
             }
             6 => { // jump if false
                 let param1 = self.resolve_param(args[0], self.ip+1);
+                let param2 = self.resolve_param(args[1], self.ip+2);
+
                 if param1 == 0 {
-                    self.ip = self.resolve_param(args[1], self.ip+2);
+                    self.ip = param2;
                 } else {
                     self.ip += argc as i64 + 1;
                 }
@@ -111,6 +231,7 @@ impl VM {
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
                 let param3 = self.resolve_param(true, self.ip+3);
+
                 if param1 < param2 {
                     self.write(param3, 1);
                 } else {
@@ -122,6 +243,7 @@ impl VM {
                 let param1 = self.resolve_param(args[0], self.ip+1);
                 let param2 = self.resolve_param(args[1], self.ip+2);
                 let param3 = self.resolve_param(true, self.ip+3);
+
                 if param1 == param2 {
                     self.write(param3, 1);
                 } else {
@@ -134,6 +256,32 @@ impl VM {
         }
 
         return true;
+    }
+
+    fn instruction(&self) -> Instruction {
+        let op = self.read(vm.ip);
+
+        let mut arg_info = op / 100;
+        let op = op % 100;
+        let i_type = instruction_type(op);
+
+        for _ in 1..(i_type.params.len()+1) {
+            args.push(arg_info % 10 == 1);
+            arg_info /= 10;
+        }
+
+        let args: Vec<i64> = i_type.params().iter().enumerate().map(|(param, i)|
+            match param {
+                Param::Src => self.resolve_param(arg_info[i], i),
+                Param::Dest => self.resolve_param(true, i),
+                Param::CondWriteTarget => self.resolve_param(true, i),
+                Param::JumpTarget => selfresolve_param(arg_info[i], i)
+            }).collect();
+
+        Instruction {
+            &i_type,
+
+        }
     }
 
     fn resolve_param(&self, imm: bool, address: i64) -> i64 {
