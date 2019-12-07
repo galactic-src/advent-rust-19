@@ -115,6 +115,9 @@ impl VM {
             }
             3 => {
                 let param1 = self.resolve_param(true, self.ip+1);
+                if os.files[&self.input_file].len() == 0 {
+                    return false;
+                }
                 let input = os.read(self.input_file);
                 self.write(param1, input);
                 self.ip += argc as i64 + 1;
@@ -173,12 +176,16 @@ impl VM {
         //println!("resolve {} ({})", address, imm);
         if imm {self.read(address)} else {self.read_ptr(address)}
     }
+
+    fn stopped(&self) -> bool {
+        self.storage[self.ip as usize] == 99
+    }
 }
 
 fn main() {
     let input = read_input();
     part1(&input);
-    //part2(&input);
+    part2(&input);
 }
 
 fn read_input() -> Vec<i64> {
@@ -202,7 +209,7 @@ fn part1(ints: &Vec<i64>) {
     let mut max_result = 0;
     heap_recursive(&mut phases,
         |phases| {
-            println!("phases: {:?}", phases);
+            //println!("trying phases: {:?}", phases);
             let mut os = OS::new();
             let first_input = os.new_file();
             let mut next_input = first_input;
@@ -223,9 +230,9 @@ fn part1(ints: &Vec<i64>) {
             os.write(vms[0].input_file, 0);
 
             for vm in &mut vms {
-                println!("next vm");
+                //println!("next vm");
                 vm.run(&mut os);
-                println!("vm complete - logging output");
+                //println!("vm complete - logging output");
                 os.log_file(vm.output_file);
             }
 
@@ -240,12 +247,61 @@ fn part1(ints: &Vec<i64>) {
     println!("part 1: {:?}", max_result);
 }
 
-//fn part2(ints: &Vec<i64>) {
-//    let mut vm = VM {ip: 0, storage: ints.to_vec(), input: 5, outputs: vec!()};
-//    vm.run();
-//    println!("part 2: {:?}", vm.outputs);
-//}
+fn part2(ints: &Vec<i64>) {
+    let vm_count : u64 = 5;
 
+    let mut phases_template = vec!();
+    for i in 5..(5 + vm_count) {
+        phases_template.push(i as i64);
+    }
+
+    let mut max_result = 0;
+    heap_recursive(&mut phases_template,
+       |phases| {
+           println!("phases: {:?}", phases);
+           let mut os = OS::new();
+           let first_input = os.new_file();
+
+           let mut vms: Vec<VM> = (0..vm_count).map(|_i| VM {
+               ip: 0,
+               storage: ints.to_vec(),
+               input_file: 0,
+               output_file: os.new_file()
+           }).collect();
+
+           let mut next_input = vms[(vm_count-1) as usize].output_file;
+
+           for (vm, phase) in vms.iter_mut().zip(phases) {
+               vm.input_file = next_input;
+               os.write(vm.input_file, *phase);
+               next_input = vm.output_file;
+           }
+
+           os.write(vms[0].input_file, 0);
+
+           loop {
+               for vm in &mut vms {
+                   println!("next vm");
+                   vm.run(&mut os);
+                   println!("vm complete - logging output");
+                   os.log_file(vm.output_file);
+               }
+
+               if vms.iter().all(|vm|vm.stopped()) {
+                   break;
+               }
+           }
+
+           let last_output_file = vms[vms.len()-1].output_file;
+           let last_output = os.read(last_output_file);
+
+           if last_output > max_result {
+               max_result = last_output;
+           }
+       });
+
+    println!("part 2: {:?}", max_result);
+}
 
 
 #[cfg(test)]
