@@ -30,7 +30,9 @@ fn part2(nodes: &HashMap<&str, (&str, Vec<&str>)>) {
     let santa_path = path_to("SAN", nodes);
     let you_path = path_to("YOU", nodes);
 
-    let common: usize = santa_path.iter().zip(&you_path).filter(|(san, you)| san == you).count() as usize;
+    let common: usize = santa_path.iter()
+        .zip(&you_path).filter(|(san, you)| san == you)
+        .count() as usize;
     let total = santa_path.len() - common + you_path.len() - common;
     println!("part 2: {}", total);
 }

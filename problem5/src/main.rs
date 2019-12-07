@@ -17,36 +17,54 @@ enum Param {
     CondWriteTarget
 }
 
-struct InstructionType {
+struct Ins0Args {
     name: &'static str,
-    params: Vec<Param>,
-    action: Fn(&mut VM, Vec<i64>) -> bool
+    action: dyn Fn(&mut VM) -> bool
 }
 
-const ADD: InstructionType = InstructionType { name: "ADD", params: vec!(Param::Src, Param::Src, Param::Dest),
-    action: |vm: &mut VM, args: Vec<i64>| {
+struct Ins1Arg {
+    name: &'static str,
+    params: [Param; 1],
+    action: dyn Fn(&mut VM, [i64; 1]) -> bool
+}
+
+struct Ins2Args {
+    name: &'static str,
+    params: [Param; 2],
+    action: dyn Fn(&mut VM, [i64; 2]) -> bool
+}
+
+struct Ins3Args {
+    name: &'static str,
+    params: [Param; 3],
+    action: dyn Fn(&mut VM, [i64; 3]) -> bool
+}
+
+const ADD = Ins3Args { name: "ADD",
+    params: [Param::Src, Param::Src, Param::Dest],
+    action: |vm: &mut VM, args: [i64, 1]| {
         let result = args[0] + args[1];
         vm.write(args[2], result);
         vm.ip += args.len() as i64 + 1;
         true
     }
 };
-const MUL: InstructionType = InstructionType { name: "MUL", params: vec!(Param::Src, Param::Src, Param::Dest),
-    action: | vm: & mut VM, args: Vec<i64>| {
+const MUL = Ins3Args { name: "MUL", params: [Param::Src, Param::Src, Param::Dest],
+    action: | vm: & mut VM, args: [i64; 1]| {
         let result = args[0] * args[1];
         vm.write(args[2], result);
         vm.ip += args.len() as i64 + 1;
         true
     }
 };
-const IN: InstructionType = InstructionType { name: "IN", params: vec!(Param::Dest),
+const IN = Ins1Arg { name: "IN", params: [Param::Dest],
     action: | vm: & mut VM, args: Vec<i64>| {
         vm.write(args[0], vm.input);
         vm.ip += args.len() as i64 + 1;
         true
     }
 };
-const OUT: InstructionType = InstructionType { name: "OUT", params: vec!(Param::Src),
+const OUT = Ins1Arg { name: "OUT", params: vec!(Param::Src),
     action: | vm: & mut VM, args: Vec<i64>| {
         vm.outputs.push(args[0]);
         vm.ip += args.len() as i64 + 1;
@@ -106,7 +124,7 @@ struct Instruction {
     args: Vec<i64>
 }
 
-fn instruction_type(op: i64) -> &InstructionType {
+fn instruction_type(op: i64) -> &'static InstructionType {
     match op {
         1 => &ADD,
         2 => &MUL,
@@ -259,15 +277,16 @@ impl VM {
     }
 
     fn instruction(&self) -> Instruction {
-        let op = self.read(vm.ip);
+        let op = self.read(self.ip);
 
-        let mut arg_info = op / 100;
+        let mut arg_bits = op / 100;
         let op = op % 100;
         let i_type = instruction_type(op);
 
+        let arg_info: Vec<bool> = vec!();
         for _ in 1..(i_type.params.len()+1) {
-            args.push(arg_info % 10 == 1);
-            arg_info /= 10;
+            arg_info.push(arg_bits % 10 == 1);
+            arg_bits /= 10;
         }
 
         let args: Vec<i64> = i_type.params().iter().enumerate().map(|(param, i)|
@@ -275,12 +294,12 @@ impl VM {
                 Param::Src => self.resolve_param(arg_info[i], i),
                 Param::Dest => self.resolve_param(true, i),
                 Param::CondWriteTarget => self.resolve_param(true, i),
-                Param::JumpTarget => selfresolve_param(arg_info[i], i)
+                Param::JumpTarget => self.resolve_param(arg_info[i], i)
             }).collect();
 
         Instruction {
-            &i_type,
-
+            i_type,
+            args
         }
     }
 
