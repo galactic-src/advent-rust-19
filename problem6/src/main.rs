@@ -2,6 +2,9 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 use std::collections::{HashMap};
 
+const ROOT_ID: &'static str = "COM";
+const SANTA_ID: &'static str = "SAN";
+const YOU_ID: &'static str = "YOU";
 
 fn main() {
     let input: Vec<(String, String)> = read_input();
@@ -27,8 +30,8 @@ fn part1(nodes: &HashMap<&str, (&str, Vec<&str>)>) {
 }
 
 fn part2(nodes: &HashMap<&str, (&str, Vec<&str>)>) {
-    let santa_path = path_to("SAN", nodes);
-    let you_path = path_to("YOU", nodes);
+    let santa_path = path_to(SANTA_ID, nodes);
+    let you_path = path_to(YOU_ID, nodes);
 
     let common: usize = santa_path.iter()
         .zip(&you_path).filter(|(san, you)| san == you)
@@ -40,7 +43,7 @@ fn part2(nodes: &HashMap<&str, (&str, Vec<&str>)>) {
 fn path_to<'a>(name: &'a str, nodes: &'a HashMap<&str, (&str, Vec<&str>)>) -> Vec<&'a str> {
     let mut path = vec!();
     let mut current = name;
-    while current != "COM" {
+    while current != ROOT_ID {
         current = nodes[current].0;
         path.push(current);
     }
