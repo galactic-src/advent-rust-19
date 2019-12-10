@@ -92,17 +92,16 @@ impl VM {
         self.ip += inc;
     }
 
-    fn read_next_instruction(&mut self) -> Instruction {
+    fn get_op(&self) -> (i64, i64){
         let next = self.read(self.ip);
-        let mut arginfo = next / 100;
+        let arginfo = next / 100;
         let op = next % 100;
 
-        let mut immediate_args = vec!();
+        return (op, arginfo)
+    }
 
-        for _ in 0..argc(op) {
-            immediate_args.push(arginfo % 10 == 1);
-            arginfo /= 10;
-        }
+    fn read_next_instruction(&mut self, op: i64, immediate_args: Vec<bool>) -> Instruction {
+
 
         match op {
             OP_ADD => {
@@ -223,7 +222,16 @@ impl VM {
     }
 
     fn step(&mut self) -> bool {
-        let i = self.read_next_instruction();
+        let (op, mut arginfo) = self.get_op();
+
+        let mut immediate_args = vec!();
+
+        for _ in 0..argc(op) {
+            immediate_args.push(arginfo % 10 == 1);
+            arginfo /= 10;
+        }
+
+        let i = self.read_next_instruction(op, immediate_args);
         if DBG >= 1 {
             println!("{:?}", i);
         }
