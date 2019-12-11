@@ -8,8 +8,8 @@ use std::f64::consts::PI;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Point {
-    x: u16,
-    y: u16
+    x: usize,
+    y: usize
 }
 
 impl Point {
@@ -20,7 +20,7 @@ impl Point {
         delta_x * delta_x + delta_y * delta_y
     }
 
-    fn closer(&self, other: &Point, target: &Point) -> Ordering {
+    fn cmp_distance(&self, other: &Point, target: &Point) -> Ordering {
         self.distance(target).cmp(&other.distance(target))
     }
 }
@@ -60,10 +60,31 @@ fn part1(points: &Vec<Point>) -> Point {
     best_point
 }
 
+const HASHABLE_FACTOR: f64 = 10000.0;
+
+fn hashable_angle(theta: f64) -> usize {
+    (theta * HASHABLE_FACTOR).round() as usize
+}
+
+fn deltas_to_angle(delta_x: f64, delta_y: f64) -> f64 {
+    let ratio = delta_x/delta_y;
+    let theta = ratio.atan();
+
+    let delta_x_pos= delta_x >= 0.0;
+    let delta_y_pos= delta_y >= 0.0;
+
+    // convert to 0->2PI
+    if !delta_y_pos {
+        theta + PI
+    } else if !delta_x_pos {
+        theta + 2.0 * PI
+    } else {
+        theta
+    }
+}
+
 fn part2(points: &Vec<Point>, laser: Point) -> Vec<(usize, Point)> {
     let mut asteroids = BTreeMap::new();
-
-    let factor = 10000.0;
 
     //let angle_tallies: HashMap<i64, u8> = HashMap::new();
 
@@ -75,49 +96,31 @@ fn part2(points: &Vec<Point>, laser: Point) -> Vec<(usize, Point)> {
         let delta_x = point.x as f64 - laser.x as f64;
         let delta_y = laser.y as f64 - point.y as f64;
 
-        let ratio = delta_x/delta_y;
-        let mut theta = ratio.atan();
+        let theta = deltas_to_angle(delta_x, delta_y);
 
-        let delta_x_pos= delta_x >= 0.0;
-        let delta_y_pos= delta_y >= 0.0;
+        //println!("({},{}) -> ({},{}) -> {}", point.x, point.y, delta_x, delta_y, theta);
 
-        // +, + first quadrant, 0 -> pi/2
-        // +, - second quadrant, pi/2 -> pi
-        // -, - third quadrant, pi -> 3pi/2
-        // -, + fourth quadrant, 3pi/2 -> 2pi
-
-        // convert to 0->2PI
-        if delta_y_pos && delta_x_pos {
-            // nothing to do
-        } else if !delta_y_pos && delta_x_pos {
-            theta = PI + theta;
-        } else if !delta_y_pos && !delta_x_pos {
-            theta = PI + theta;
-        } else if delta_y_pos && !delta_x_pos {
-            theta += 2.0 * PI;
-        }
-
-        println!("({},{}) -> ({},{}) -> {}", point.x, point.y, delta_x, delta_y, theta);
-
-        let theta: usize = (theta * factor).round() as usize;
-
-        asteroids.entry(theta)
+        asteroids.entry(hashable_angle(theta))
             .and_modify(|v: &mut Vec<Point>|v.push(*point))
             .or_insert(vec!(*point));
     }
 
     for v in asteroids.values_mut() {
-        v.sort_by(|p1, p2| p1.closer(&p2, &laser));
+        v.sort_by(|p1, p2| p1.cmp_distance(&p2, &laser));
     }
 
     let mut adjusted_asteroids: Vec<(usize, Point)> = asteroids.into_iter()
-        .flat_map(move |(angle, v)|v.into_iter().enumerate()
-            .map(move |(i, p)| (angle + i * 2 * (PI * factor) as usize, p)).into_iter())
+        .flat_map(move |(angle, v)|
+            v.into_iter()
+                .enumerate()
+                .map(move |(i, p)|
+                    (angle + hashable_angle((i * 2) as f64 * PI), p)).into_iter()
+        )
         .collect();
 
     adjusted_asteroids.sort_by(|i1,i2| i1.0.cmp(&i2.0));
 
-    println!("{:?}", adjusted_asteroids);
+    //println!("{:?}", adjusted_asteroids);
 
     adjusted_asteroids
 }
@@ -125,17 +128,17 @@ fn part2(points: &Vec<Point>, laser: Point) -> Vec<(usize, Point)> {
 fn read_input() -> Vec<Point> {
     let file = File::open("src/input").unwrap();
     let reader: BufReader<File> = BufReader::new(file);
-    let mut all_points = vec!();
 
-    for (line_no, line) in reader.lines().enumerate() {
-        for (char_no, c) in line.expect("failed to read line").chars().enumerate() {
-            if c == '#' {
-                all_points.push(Point {x: char_no as u16, y: line_no as u16 })
-            }
-        }
-    }
+    let points: Vec<Point> = reader.lines().enumerate()
+        .flat_map(move |(line_no, line)| line.expect("couldn't parse string").chars().enumerate()
+            .filter_map(move |(char_no, c)| match c {
+                '#' => Some(Point{ x: char_no, y: line_no }),
+                _ => None
+            }).collect::<Vec<Point>>().into_iter()
+        )
+        .collect();
 
-    all_points
+    points
 }
 
 #[cfg(test)]
@@ -156,7 +159,7 @@ mod tests {
         for (line_no, line) in input.iter().enumerate() {
             for (char_no, c) in line.chars().enumerate() {
                 if c == '#' {
-                    all_points.push(Point {x: char_no as u16, y: line_no as u16 })
+                    all_points.push(Point {x: char_no as usize, y: line_no as usize })
                 }
             }
         }
@@ -254,7 +257,7 @@ mod tests {
         for (line_no, line) in input.iter().enumerate() {
             for (char_no, c) in line.chars().enumerate() {
                 if c == '#' {
-                    all_points.push(Point {x: char_no as u16, y: line_no as u16 })
+                    all_points.push(Point {x: char_no as usize, y: line_no as usize })
                 }
             }
         }
