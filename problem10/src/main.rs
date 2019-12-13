@@ -130,11 +130,11 @@ fn read_input() -> Vec<Point> {
     let reader: BufReader<File> = BufReader::new(file);
 
     let points: Vec<Point> = reader.lines().enumerate()
-        .flat_map(move |(line_no, line)| line.expect("couldn't parse string").chars().enumerate()
-            .filter_map(move |(char_no, c)| match c {
+        .flat_map(|(line_no, line)| line.expect("couldn't parse string").chars().enumerate()
+            .filter_map(|(char_no, c)| match c {
                 '#' => Some(Point{ x: char_no, y: line_no }),
                 _ => None
-            }).collect::<Vec<Point>>().into_iter()
+            }).collect::<Vec<Point>>()
         )
         .collect();
 
