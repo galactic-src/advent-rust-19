@@ -289,6 +289,9 @@ impl VM {
                 self.outputs.push(value);
                 if self.outputs.len() == 3 {
                     self.game.paint(&self.outputs);
+                    if self.outputs[2] == 4 {
+                        println!("storage for ball draw: {:?}", self.storage);
+                    }
                     self.outputs.clear();
                 }
                 self.advance_ip(argc as i64 + 1);
