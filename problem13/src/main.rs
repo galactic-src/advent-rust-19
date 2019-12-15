@@ -14,6 +14,8 @@ const OP_WEQ: i64 = 8;
 const OP_BASE: i64 = 9;
 const OP_HALT: i64 = 99;
 
+const PADDLE_ROW: usize = 24;
+
 #[derive(Debug)]
 enum Instruction {
     Add { add1: Arg, add2: Arg, dest: Arg },
@@ -60,7 +62,6 @@ type Storage = Vec<i64>;
 struct VM {
     ip: i64,
     storage: Storage,
-    input: i64,
     outputs: Vec<i64>,
     base: i64,
     more_storage: HashMap<i64, i64>,
@@ -84,7 +85,8 @@ struct Pong {
     display: Vec<Vec<char>>,
     score: i64,
     ball: (usize, usize),
-    ball_direction: (i16, i16)
+    ball_direction: (i16, i16),
+    paddle: usize
 }
 
 impl Pong {
@@ -93,7 +95,8 @@ impl Pong {
             display: vec![vec![' '; 37]; 26],
             score: 0,
             ball: (0, 0),
-            ball_direction: (0, 0)
+            ball_direction: (0, 1),
+            paddle: 0
         }
     }
 
@@ -110,20 +113,44 @@ impl Pong {
             x => panic!("Unexpected paint value {}", x)
         };
 
+        if data[2] == 3 {
+            self.paddle = x;
+        }
+
         if data[2] == 4 {
             self.ball_direction = (x as i16 - self.ball.0 as i16 , y as i16 - self.ball.1 as i16 );
             self.ball = (x, y);
+        }
+    }
+
+    fn print_display(&self) {
+        let mut printout = String::from("\n\n\n");
+        for row in &self.display {
+            for c in row {
+                printout.push(*c);
+            }
+            printout.push('\n');
+        }
+        println!("{}", printout);
+    }
+
+    fn get_input(&self) -> i64 {
+        if self.paddle < self.ball.0 {
+            1
+        } else if self.paddle > self.ball.0 {
+            -1
+        } else {
+            0
         }
     }
 }
 
 impl VM {
 
-    fn new(storage: Storage, input: i64) -> VM {
+    fn new(storage: Storage) -> VM {
         VM {
             ip: 0,
             storage,
-            input,
             outputs: vec!(),
             base: 0,
             more_storage: HashMap::new(),
@@ -281,16 +308,24 @@ impl VM {
             },
             Instruction::In { dest } => {
                 let address = self.resolve_param_w(&dest);
-                self.write(address, self.input);
+                let input = self.game.get_input();
+                self.write(address, input);
                 self.advance_ip(argc as i64 + 1);
             },
             Instruction::Out { data } => {
                 let value = self.resolve_param(&data);
                 self.outputs.push(value);
                 if self.outputs.len() == 3 {
-                    self.game.paint(&self.outputs);
+                    println!("outputs: {:?}", self.outputs);
+                    if self.outputs[0] == -1 && self.outputs[1] == 0 {
+                        println!("score += {}", self.outputs[2] - self.game.score);
+                        self.game.score = self.outputs[2];
+                    } else {
+                        self.game.paint(&self.outputs);
+                    }
                     if self.outputs[2] == 4 {
-                        println!("storage for ball draw: {:?}", self.storage);
+                        self.game.print_display();
+                        //println!("storage for ball t: {:?}", self.storage);
                     }
                     self.outputs.clear();
                 }
@@ -398,7 +433,7 @@ impl VM {
 
 fn main() {
     let input = read_input();
-    part1(&input);
+//    part1(&input);
     part2(&input);
 }
 
@@ -413,33 +448,33 @@ fn read_input() -> Vec<i64> {
 }
 
 fn part1(ints: &Vec<i64>) {
-    let mut vm = VM::new(ints.to_vec(), 1);
-    vm.run();
+//    let mut vm = VM::new(ints.to_vec(), 1);
+//    vm.run();
     //println!("part 1: {:?}", vm.outputs);
-    let paints: Vec<&[i64]> = vm.outputs.chunks(3).collect();
-    println!("{:?}",paints);
-    let x_min = paints.iter().map(|triple|triple[0]).min().expect("no x_min") as usize;
-    let x_max = paints.iter().map(|triple|triple[0]).max().expect("no x_max") as usize;
-    let y_min = paints.iter().map(|triple|triple[1]).min().expect("no y_min") as usize;
-    let y_max = paints.iter().map(|triple|triple[1]).max().expect("no y_max") as usize;
+//    let paints: Vec<&[i64]> = vm.outputs.chunks(3).collect();
+//    println!("{:?}",paints);
+//    let x_min = paints.iter().map(|triple|triple[0]).min().expect("no x_min") as usize;
+//    let x_max = paints.iter().map(|triple|triple[0]).max().expect("no x_max") as usize;
+//    let y_min = paints.iter().map(|triple|triple[1]).min().expect("no y_min") as usize;
+//    let y_max = paints.iter().map(|triple|triple[1]).max().expect("no y_max") as usize;
 //    println!("({}-{},{}-{})", x_min, x_max, y_min, y_max);
-    if x_min != 0 {panic!("x_min non-zero: {}", x_min)}
-    if y_min != 0 {panic!("y_min non-zero: {}", y_min)}
-    let mut display = vec![vec![' '; x_max+1]; y_max+1];
+//    if x_min != 0 {panic!("x_min non-zero: {}", x_min)}
+//    if y_min != 0 {panic!("y_min non-zero: {}", y_min)}
+//    let mut display = vec![vec![' '; x_max+1]; y_max+1];
 
-    for paint in paints {
-        let x = paint[0] as usize;
-        let y = paint[1] as usize;
-        {
-            display[y][x] = match paint[2] {
-                0 => ' ',
-                1 => 'X',
-                2 => '#',
-                3 => '_',
-                4 => 'o',
-                x => panic!("Unexpected paint value {}", x)
-            };
-        }
+//    for paint in paints {
+//        let x = paint[0] as usize;
+//        let y = paint[1] as usize;
+//        {
+//            display[y][x] = match paint[2] {
+//                0 => ' ',
+//                1 => 'X',
+//                2 => '#',
+//                3 => '_',
+//                4 => 'o',
+//                x => panic!("Unexpected paint value {}", x)
+//            };
+//        }
 
 //        let mut printout = String::from("\n\n\n");
 //        for row in &display {
@@ -449,15 +484,15 @@ fn part1(ints: &Vec<i64>) {
 //            printout.push('\n');
 //        }
 //        println!("{}", printout);
-    }
+//    }
 
-    let block_count = display.iter().flat_map(|row| row.iter()).filter(|c| **c == '#').count();
-
-    println!("part 1: {}", block_count);
+//    let block_count = display.iter().flat_map(|row| row.iter()).filter(|c| **c == '#').count();
+//
+//    println!("part 1: {}", block_count);
 }
 
 fn part2(ints: &Vec<i64>) {
-    let mut vm = VM::new(ints.to_vec(), 2);
+    let mut vm = VM::new(ints.to_vec());
     vm.write(0, 2);
     vm.run();
 }
