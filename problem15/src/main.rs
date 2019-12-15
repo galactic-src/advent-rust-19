@@ -1,7 +1,269 @@
 use std::fs::File;
-use std::io::{BufReader, BufRead};
-use std::collections::HashMap;
+use std::io::{BufReader, BufRead, stdin};
+use std::collections::{HashMap, HashSet};
+use std::{thread, time};
 
+const DBG: u8 = 0;
+
+type Storage = Vec<i64>;
+
+const SIZE: usize = 50;
+
+struct Game {
+    grid: [[char; SIZE]; SIZE],
+    location: (usize, usize),
+    last_result: i64,
+    direction: Direction,
+    mode: GameMode
+}
+
+enum GameMode {
+    Manual,
+    FollowLeft
+}
+
+impl Game {
+    fn new() -> Game {
+        println!("creating game");
+        let mut game = Game {
+            grid: [[' '; SIZE]; SIZE],
+            location: (SIZE/2,SIZE/2),
+            last_result: -1,
+            direction: Direction::Start,
+            mode: GameMode::FollowLeft
+        };
+        game.grid[game.location.1][game.location.0] = '░';
+        game
+    }
+
+    fn print_map(&self) {
+        println!();
+        for y in 0..SIZE {
+            let mut s: String = self.grid[y].iter().cloned().collect();
+            if self.location.0 == y {
+                s = s.chars().enumerate()
+                    .map(|(i, c)| if i == self.location.1 { '🤖' } else { c })
+                    .collect()
+            }
+            println!("{}",s);
+        }
+        println!("\n>");
+    }
+
+    fn set(&mut self, x: usize, y: usize, result: i64) {
+        //println!("setting ({}, {}) for result {}", x, y, result);
+        self.grid[y][x] = match result {
+            0 => '█',
+            1 => '░',
+            2 => 'o',
+            _ => panic!("painting with char {}", self.grid[x][y])
+        }
+    }
+
+    fn release_the_oxygen(&mut self) {
+        let mut seconds = 0;
+        let mut visited: HashSet<(usize, usize)> = HashSet::new();
+        let mut newly_added: HashSet<(usize, usize)> = HashSet::new();
+        let mut last_round: HashSet<(usize, usize)> = HashSet::new();
+
+        let oxygen = self.grid.iter().enumerate()
+            .flat_map(|(row_ix, row)|
+                          row.iter().enumerate()
+                              .filter(|(_char_ix, c)| **c == 'o')
+                              .map(move |(char_ix, _c)| (char_ix, row_ix)))
+            .nth(0).expect("original oxygen missing");
+
+        println!("oxygen location = {:?}", oxygen);
+
+        newly_added.insert(oxygen);
+
+        loop {
+
+            let sleep_duration = time::Duration::from_millis(20);
+            thread::sleep(sleep_duration);
+
+            if newly_added.len() == 0 {
+                println!("part 2: {}", seconds-1);
+                panic!("DONE");
+            }
+            visited.extend(last_round);
+            //println!("visited: {:?}", visited);
+            last_round = newly_added;
+            newly_added = HashSet::new();
+
+            for location in &last_round {
+                for possible in Game::adjacent(&location) {
+                    let spread: bool = self.grid[possible.1][possible.0] == '░' && !visited.contains(&possible);
+                    if spread {
+                        newly_added.insert(possible);
+                        self.grid[possible.1][possible.0] = 'o';
+                    }
+                }
+            }
+
+            seconds += 1;
+
+            //println!("{} seconds, newly_added {:?}", seconds, newly_added);
+            self.print_map();
+        }
+
+    }
+
+    fn adjacent(location: &(usize, usize)) -> Vec<(usize, usize)> {
+        vec!(
+            (location.0+1, location.1),
+            (location.0-1, location.1),
+            (location.0, location.1+1),
+            (location.0, location.1-1)
+        )
+    }
+
+    fn read_input(&mut self) -> i64 {
+        use Direction::*;
+
+        if self.location == (SIZE/2, SIZE/2) && self.direction == Direction::Down {
+            self.release_the_oxygen();
+        }
+
+        let attempted_move = (
+            match self.direction {
+                Left => self.location.1 - 1,
+                Right => self.location.1 + 1,
+                _ => self.location.1
+            },
+            match self.direction {
+                Down => self.location.0 + 1,
+                Up => self.location.0 - 1,
+                _ => self.location.0
+            }
+        );
+
+        println!("tried to move from ({},{}) to ({},{}), got {}",
+                 self.location.1, self.location.0,
+                 attempted_move.0, attempted_move.1, self.last_result);
+
+        if self.last_result != 0 {
+            self.location = (attempted_move.1, attempted_move.0);
+        }
+        println!("I am at ({}, {})", self.location.1, self.location.0);
+
+        if self.direction != Start {
+            self.set(
+                attempted_move.0,
+                attempted_move.1,
+                self.last_result
+            )
+        }
+
+        self.print_map();
+
+        match self.mode {
+            GameMode::Manual => self.manual_input(),
+            GameMode::FollowLeft => self.follow_left_input()
+        }
+    }
+
+    fn manual_input(&mut self) -> i64 {
+        use Direction::*;
+
+        loop {
+            let mut buffer = String::new();
+            stdin().read_line(&mut buffer).expect("input fail");
+            match &buffer as &str {
+                "e\n" => {
+                    self.direction = Up;
+                    return 1;
+                },
+                "d\n" => {
+                    self.direction = Down;
+                    return 2;
+                },
+                "s\n" => {
+                    self.direction = Left;
+                    return 3;
+                },
+                "f\n" => {
+                    self.direction = Right;
+                    return 4;
+                },
+                s => println!("unrecognised {}", s)
+            }
+        }
+    }
+
+    fn follow_left_input(&mut self) -> i64 {
+        use Direction::*;
+
+        //let sleep_duration = time::Duration::from_millis(1);
+        //thread::sleep(sleep_duration);
+
+        if self.last_result == 0 {
+            match self.direction {
+                Start | Up => {
+                    self.direction = Right;
+                    return 4;
+                },
+                Right => {
+                    self.direction = Down;
+                    return 2;
+                },
+                Down => {
+                    self.direction = Left;
+                    return 3;
+                },
+                Left => {
+                    self.direction = Up;
+                    return 1;
+                }
+            }
+        } else {
+            match self.direction {
+                Start | Up => {
+                    self.direction = Left;
+                    return 3;
+                },
+                Left => {
+                    self.direction = Down;
+                    return 2;
+                },
+                Down => {
+                    self.direction = Right;
+                    return 4;
+                },
+                Right => {
+                    self.direction = Up;
+                    return 1;
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum Direction {
+    Up,Down,Left,Right,Start
+}
+
+struct VM {
+    ip: i64,
+    storage: Storage,
+    base: i64,
+    more_storage: HashMap<i64, i64>,
+    game: Game
+}
+
+#[derive(Debug)]
+struct Arg {
+    value: i64,
+    mode: Mode
+}
+
+#[derive(Debug, Copy, Clone)]
+enum Mode {
+    Normal,
+    Imm,
+    Base
+}
 
 const OP_ADD: i64 = 1;
 const OP_MUL: i64 = 2;
@@ -53,81 +315,16 @@ fn argc_i(instruction: &Instruction) -> i64 {
     }
 }
 
-const DBG: u8 = 0;
-
-type Storage = Vec<i64>;
-
-struct VM {
-    ip: i64,
-    storage: Storage,
-    input: i64,
-    outputs: Vec<i64>,
-    base: i64,
-    more_storage: HashMap<i64, i64>,
-    game: Pong
-}
-
-#[derive(Debug)]
-struct Arg {
-    value: i64,
-    mode: Mode
-}
-
-#[derive(Debug, Copy, Clone)]
-enum Mode {
-    Normal,
-    Imm,
-    Base
-}
-
-struct Pong {
-    display: Vec<Vec<char>>,
-    score: i64,
-    ball: (usize, usize),
-    ball_direction: (i16, i16)
-}
-
-impl Pong {
-    fn new() -> Pong {
-        Pong {
-            display: vec![vec![' '; 37]; 26],
-            score: 0,
-            ball: (0, 0),
-            ball_direction: (0, 0)
-        }
-    }
-
-    fn paint(&mut self, data: &Vec<i64>) {
-        let x = data[0] as usize;
-        let y = data[1] as usize;
-
-        self.display[y][x] = match data[2] {
-            0 => ' ',
-            1 => 'X',
-            2 => '#',
-            3 => '_',
-            4 => 'o',
-            x => panic!("Unexpected paint value {}", x)
-        };
-
-        if data[2] == 4 {
-            self.ball_direction = (x as i16 - self.ball.0 as i16 , y as i16 - self.ball.1 as i16 );
-            self.ball = (x, y);
-        }
-    }
-}
-
 impl VM {
 
-    fn new(storage: Storage, input: i64) -> VM {
+    fn new(storage: Storage) -> VM {
+        println!("creating VM");
         VM {
             ip: 0,
             storage,
-            input,
-            outputs: vec!(),
             base: 0,
             more_storage: HashMap::new(),
-            game: Pong::new()
+            game: Game::new()
         }
     }
 
@@ -281,16 +478,14 @@ impl VM {
             },
             Instruction::In { dest } => {
                 let address = self.resolve_param_w(&dest);
-                self.write(address, self.input);
+                let input = self.game.read_input();
+                println!("writing {}", input);
+                self.write(address, input);
                 self.advance_ip(argc as i64 + 1);
             },
             Instruction::Out { data } => {
                 let value = self.resolve_param(&data);
-                self.outputs.push(value);
-                if self.outputs.len() == 3 {
-                    self.game.paint(&self.outputs);
-                    self.outputs.clear();
-                }
+                self.game.last_result = value;
                 self.advance_ip(argc as i64 + 1);
             },
             Instruction::Jnz { test, abs_target } => {
@@ -394,9 +589,11 @@ impl VM {
 }
 
 fn main() {
+    println!("reading input");
     let input = read_input();
+    println!("read input");
     part1(&input);
-    part2(&input);
+    //part2(&input);
 }
 
 fn read_input() -> Vec<i64> {
@@ -410,51 +607,7 @@ fn read_input() -> Vec<i64> {
 }
 
 fn part1(ints: &Vec<i64>) {
-    let mut vm = VM::new(ints.to_vec(), 1);
-    vm.run();
-    //println!("part 1: {:?}", vm.outputs);
-    let paints: Vec<&[i64]> = vm.outputs.chunks(3).collect();
-    println!("{:?}",paints);
-    let x_min = paints.iter().map(|triple|triple[0]).min().expect("no x_min") as usize;
-    let x_max = paints.iter().map(|triple|triple[0]).max().expect("no x_max") as usize;
-    let y_min = paints.iter().map(|triple|triple[1]).min().expect("no y_min") as usize;
-    let y_max = paints.iter().map(|triple|triple[1]).max().expect("no y_max") as usize;
-//    println!("({}-{},{}-{})", x_min, x_max, y_min, y_max);
-    if x_min != 0 {panic!("x_min non-zero: {}", x_min)}
-    if y_min != 0 {panic!("y_min non-zero: {}", y_min)}
-    let mut display = vec![vec![' '; x_max+1]; y_max+1];
-
-    for paint in paints {
-        let x = paint[0] as usize;
-        let y = paint[1] as usize;
-        {
-            display[y][x] = match paint[2] {
-                0 => ' ',
-                1 => 'X',
-                2 => '#',
-                3 => '_',
-                4 => 'o',
-                x => panic!("Unexpected paint value {}", x)
-            };
-        }
-
-//        let mut printout = String::from("\n\n\n");
-//        for row in &display {
-//            for c in row {
-//                printout.push(*c);
-//            }
-//            printout.push('\n');
-//        }
-//        println!("{}", printout);
-    }
-
-    let block_count = display.iter().flat_map(|row| row.iter()).filter(|c| **c == '#').count();
-
-    println!("part 1: {}", block_count);
-}
-
-fn part2(ints: &Vec<i64>) {
-    let mut vm = VM::new(ints.to_vec(), 2);
-    vm.write(0, 2);
+    let mut vm = VM::new(ints.to_vec());
+    println!("created VM");
     vm.run();
 }

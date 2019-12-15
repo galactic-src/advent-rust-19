@@ -126,15 +126,8 @@ fn find_repeated_state(mut locations: Vec<MoonLocation>) -> usize {
 }
 
 fn find_repeated_state_u(mut universe: Universe) -> usize {
-    let universe_origin = UniverseLocations {
-        moons: [
-            MoonLocation::new(),
-            MoonLocation::new(),
-            MoonLocation::new(),
-            MoonLocation::new(),
-        ]
-    };
-    let mut universe_delta = universe_origin.clone();
+    let mut previous_states = HashSet::new();
+    previous_states.insert(universe.clone());
 
     let mut steps: usize = 0;
 
@@ -142,9 +135,9 @@ fn find_repeated_state_u(mut universe: Universe) -> usize {
         run_step_u(&mut universe);
 
         for i in 0..4 {
-            universe_delta.moons[i].x += universe.moons[i].velocity.v_x;
-            universe_delta.moons[i].y += universe.moons[i].velocity.v_y;
-            universe_delta.moons[i].z += universe.moons[i].velocity.v_z;
+            universe.moons[i].location.x += universe.moons[i].velocity.v_x;
+            universe.moons[i].location.y += universe.moons[i].velocity.v_y;
+            universe.moons[i].location.z += universe.moons[i].velocity.v_z;
         }
 
         steps += 1;
@@ -153,8 +146,11 @@ fn find_repeated_state_u(mut universe: Universe) -> usize {
             println!("{}", steps);
         }
 
-        if universe_delta == universe_origin {
+        let new_state = universe.clone();
+        if previous_states.contains(&new_state) {
             return steps;
+        } else {
+            previous_states.insert(new_state);
         }
     }
 }
@@ -297,7 +293,7 @@ mod tests {
             MoonLocation{x: 4, y: -8, z: 8},
             MoonLocation{x: 3,y: 5,z:-1});
         let mut velocities = vec!(MoonVelocity::new(), MoonVelocity::new(), MoonVelocity::new(), MoonVelocity::new());
-        run_step(locations, velocities);
+        run_step(&mut locations, &mut velocities);
         //let result = find_repeated_state(locations);
 
 //        pos=<x= 2, y=-1, z= 1>, vel=<x= 3, y=-1, z=-1>
@@ -308,21 +304,20 @@ mod tests {
             MoonLocation{x: 2, y: -1,z: 1},
             MoonLocation{x: 3, y:-7, z:-4},
             MoonLocation{x: 1, y: -7, z: 5},
-            MoonLocation{x: 3,y: 5,z:-1}));
-        assert_eq!(velocities, vec!())
+            MoonLocation{x: 2,y: 2, z:0}));
+        //assert_eq!(velocities, vec!())
     }
-
-
-
+    
     #[test]
     fn test_find_state_repeat() {
-        let locations = vec!(
-            MoonLocation{x: -8, y: -10,z: 0},
-            MoonLocation{x: 5, y:5, z:10},
-            MoonLocation{x: 2, y: -7, z: 3},
-            MoonLocation{x: 9,y:-8,z:-3});
+        let universe = Universe {moons: [
+            MoonState {location: MoonLocation{x: -8, y: -10,z: 0}, velocity: MoonVelocity::new()},
+            MoonState {location: MoonLocation{x: 5, y:5, z:10}, velocity: MoonVelocity::new()},
+            MoonState {location: MoonLocation{x: 2, y: -7, z: 3}, velocity: MoonVelocity::new()},
+            MoonState {location: MoonLocation{x: 9,y:-8,z:-3}, velocity: MoonVelocity::new()}]
+        };
 
-        let result = find_repeated_state(locations);
+        let result = find_repeated_state_u(universe);
         assert_eq!(result, 4686774924);
     }
 }
